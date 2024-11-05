@@ -1,0 +1,99 @@
+export function createLineCanvas(options) {
+    const { width = 3, color = "#A69CFB", lineLength = 20, mixBlendMode = "normal", targetSelector = "body" } = options;
+    
+    // Находим целевой элемент, к которому будет "привязан" холст
+    const targetElement = document.querySelector(targetSelector);
+    if (!targetElement) {
+        console.warn("Целевой элемент не найден");
+        return;
+    }
+
+    // Создаём элемент холста
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    let points = []; // Массив для хранения координат линии
+
+    // Устанавливаем стили для холста
+    canvas.style.position = "absolute";
+    canvas.style.pointerEvents = "none";
+    canvas.style.mixBlendMode = mixBlendMode;
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    targetElement.appendChild(canvas);
+
+    // Обновляем размер холста в соответствии с размером целевого элемента
+    function resizeCanvas() {
+        const rect = targetElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        canvas.style.top = `${window.scrollY + rect.top}px`;
+        canvas.style.left = `${rect.left}px`;
+    }
+    resizeCanvas();
+
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("scroll", resizeCanvas);
+
+    // Функция рисования линии на основе точек
+    function drawLine() {
+        if (points.length < 2) return;
+        
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.beginPath();
+        context.moveTo(points[0].x, points[0].y);
+        
+        for (let i = 1; i < points.length - 1; i++) {
+            const midX = (points[i].x + points[i + 1].x) / 2;
+            const midY = (points[i].y + points[i + 1].y) / 2;
+            context.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+        }
+
+        // Последняя точка
+        context.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+        context.lineWidth = width;
+        context.strokeStyle = color;
+        context.lineJoin = "round";
+        context.stroke();
+    }
+
+    // Обработчик для события перемещения мыши
+    function onMouseMove(event) {
+        const rect = targetElement.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        // Добавляем координаты в массив
+        points.push({ x, y });
+
+        // Обрезаем массив, чтобы он не превышал длину `lineLength`
+        if (points.length > lineLength) {
+            points.shift();
+        }
+
+        drawLine();
+    }
+
+    // Удаление точки в хвосте, чтобы линия плавно исчезала
+    function fadeOutLine() {
+        if (points.length > 0) {
+            points.shift();
+            drawLine();
+            requestAnimationFrame(fadeOutLine);
+        }
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+
+    // Когда мышь покидает элемент, начинаем плавное исчезновение линии
+    targetElement.addEventListener("mouseleave", () => {
+        fadeOutLine();
+    });
+
+    // Очищаем холст при переходе на другую страницу или перезагрузке
+    window.addEventListener("beforeunload", () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        targetElement.removeChild(canvas);
+    });
+}
